@@ -1,0 +1,13 @@
+#要导出的目录
+dir: backup
+#主机地址，必须是TLS加密的IMAP协议地址
+host: imap.qq.com:993
+#用户名，登录IMAP服务器的用户名
+username: qq@qq.com
+#密码，登录IMAP服务器的密码
+password: password
+prefixes:
+ - 存档
+ - 收件箱
+ - INBOX
+ - 已发送
