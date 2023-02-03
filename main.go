@@ -19,6 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("转换配置文件出错:%s\n", err.Error())
 	}
+	opts.print()
 	ctx := context.Background()
 	if err = DownloadByAccount(ctx, opts); err != nil {
 		log.Printf("下载报错：%s\n", err.Error())
