@@ -4,7 +4,7 @@ dir: backup
 host: imap.qq.com:993
 #用户名，登录IMAP服务器的用户名
 username: qq@qq.com
-#密码，登录IMAP服务器的密码
+#密码，登录IMAP服务器的密码或授权码
 password: password
 prefixes:
  - 存档
