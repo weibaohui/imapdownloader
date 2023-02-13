@@ -224,6 +224,11 @@ func (d *Downloader) getMailStorePath(msg *imap.Message) string {
 	year := msg.Envelope.Date.Format("2006")
 	month := msg.Envelope.Date.Format("01")
 	subject := msg.Envelope.Subject
+	subject = strings.Replace(subject, "“", "", -1)
+	subject = strings.Replace(subject, "”", "", -1)
+	subject = strings.Replace(subject, "\"", "", -1)
+	subject = strings.Replace(subject, "（", "", -1)
+	subject = strings.Replace(subject, "）", "", -1)
 	subject = strings.Replace(subject, " ", "", -1)
 	subject = strings.Replace(subject, "。", "", -1)
 	subject = strings.Replace(subject, "，", "", -1)
