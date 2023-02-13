@@ -3,10 +3,9 @@
 * 最新版本 v0.2
 # 使用说明
 ## 二进制包
-```js
-链接: https://pan.baidu.com/s/1U0t76mh6bi7Z9hC3t5aOxA 
-提取码: bun7 
-```
+* 链接: [https://pan.baidu.com/s/1U0t76mh6bi7Z9hC3t5aOxA](https://pan.baidu.com/s/1U0t76mh6bi7Z9hC3t5aOxA)
+* 提取码: bun7 
+
 ## 1、填写配置文件 config.yaml
 ```yaml
 #要导出的目录
