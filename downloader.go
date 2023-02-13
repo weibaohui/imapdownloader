@@ -56,7 +56,7 @@ func (d *Downloader) downloadAccountMailbox(ctx context.Context, mailbox string)
 	all := status.Messages
 	log.Printf("下载批次: %d\n", int(all/100))
 
-	dir := filepath.Join(d.Options.Dir, mailbox)
+	dir := filepath.Join(d.Options.absDir, mailbox)
 	log.Printf("%s邮箱文件夹下载存放位置: %s\n", mailbox, dir)
 
 	for i := 0; i <= int(all/100); i++ {
@@ -194,35 +194,18 @@ func (d *Downloader) downloadMailList(ctx context.Context, seqDL *imap.SeqSet) (
 func (d *Downloader) downloadMail(msg *imap.Message) (err error) {
 	file := d.getMailStorePath(msg)
 	log.Printf("存储邮件：%s\n", file)
-	tmpFile := file + ".tmp"
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			log.Printf("清理文件报错:%s\n", err.Error())
-		}
-	}(tmpFile)
-
-	if err = os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+	if err = os.MkdirAll(filepath.Dir(file), os.ModePerm); err != nil {
 		return
 	}
-
 	r := msg.GetBody(&imap.BodySectionName{})
-
 	if r == nil {
 		log.Println("message does not have a body:", msg.Envelope.MessageId)
 		return
 	}
-
 	var f *os.File
-	if f, err = os.OpenFile(tmpFile, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640); err != nil {
+	if f, err = os.OpenFile(file, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640); err != nil {
 		return
 	}
-	defer func() {
-		if err == nil {
-			return
-		}
-		_ = os.RemoveAll(file)
-	}()
 	defer func(f *os.File) {
 		err := f.Close()
 		if err != nil {
@@ -233,11 +216,6 @@ func (d *Downloader) downloadMail(msg *imap.Message) (err error) {
 	if _, err = io.Copy(f, r); err != nil {
 		return
 	}
-
-	if err = os.Rename(tmpFile, file); err != nil {
-		return
-	}
-
 	return
 }
 
@@ -252,8 +230,9 @@ func (d *Downloader) getMailStorePath(msg *imap.Message) string {
 	subject = strings.Replace(subject, "【", "", -1)
 	subject = strings.Replace(subject, "】", "", -1)
 	subject = strings.Replace(subject, "：", "", -1)
+	subject = strings.Replace(subject, ":", "", -1)
 	subject = strings.Replace(subject, "/", "", -1)
-	dir := filepath.Join(d.Options.Dir, d.currentMailbox)
+	dir := filepath.Join(d.Options.absDir, d.currentMailbox)
 	tid := fmt.Sprintf("%d", msg.Envelope.Date.UnixMilli())
 	return filepath.Join(dir, year, month, fmt.Sprintf("%s-%s.eml", subject, tid))
 }
@@ -261,15 +240,14 @@ func (d *Downloader) getMailStorePath(msg *imap.Message) string {
 // 检查邮件存储路径是否存在
 func (d *Downloader) checkMailStorePathExisted(msg *imap.Message) (existed bool, err error) {
 	file := d.getMailStorePath(msg)
-	if _, err = os.Stat(file); err != nil {
-		if os.IsNotExist(err) {
-			err = nil
-			existed = false
-		}
-		log.Printf("√ 下载：%s", msg.Envelope.Subject)
+	exists, err := PathExists(file)
+	if err != nil {
 		return
 	}
-	existed = true
-	log.Printf("× 跳过：%s", msg.Envelope.Subject)
+	if exists {
+		log.Printf("× 跳过：%s", msg.Envelope.Subject)
+		return exists, nil
+	}
+	log.Printf("√ 下载：%s", msg.Envelope.Subject)
 	return
 }
