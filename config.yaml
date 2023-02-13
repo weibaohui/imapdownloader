@@ -1,4 +1,4 @@
-#要导出的目录
+#备份下载的目录
 dir: backup
 #主机地址，必须是TLS加密的IMAP协议地址
 host: imap.qq.com:993
