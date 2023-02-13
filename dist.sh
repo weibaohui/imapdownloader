@@ -15,13 +15,13 @@ build() {
   FILENAME="imapdownloader-${VERSION}-${GOOS}-${GOARCH}"
   go build -a -installsuffix cgo  -o "dist/${FILENAME}" .
 }
-#
-#build linux amd64
-#build windows amd64
-#build darwin amd64
-#
-#build linux arm64
-#build linux loong64
+
+build linux amd64
+build windows amd64
+build darwin amd64
+
+build linux arm64
+build linux loong64
 build windows arm64
 #build darwin arm64
 
