@@ -23,7 +23,8 @@ prefixes:
  - 已发送
 ```
 ### 2、运行
-程序默认读取同目录下的config.yaml文件
+程序默认读取同目录下的config.yaml文件。
+程序可多次运行，自动跳过已下载邮件
 ```shell
 ./imapdownloader
 ```
