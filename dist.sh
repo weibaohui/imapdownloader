@@ -23,5 +23,5 @@ build darwin amd64
 build linux arm64
 build linux loong64
 build windows arm64
-#build darwin arm64
+build darwin arm64
 
