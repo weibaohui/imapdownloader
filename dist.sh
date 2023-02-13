@@ -11,7 +11,7 @@ build() {
   export GOOS=$1
   export GOARCH=$2
   export CGO_ENABLED=0
-  export VERSION=0.2
+  export VERSION=0.3
   FILENAME="imapdownloader-${VERSION}-${GOOS}-${GOARCH}"
   go build -a -installsuffix cgo  -o "dist/${FILENAME}" .
 }

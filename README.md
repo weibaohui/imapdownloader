@@ -1,6 +1,6 @@
 # imapdownloader
 * 将邮件批量备份到本地文件夹。
-* 最新版本 v0.2
+* 最新版本 v0.3
 # 使用说明
 ## 二进制包
 * 链接: [https://pan.baidu.com/s/1U0t76mh6bi7Z9hC3t5aOxA](https://pan.baidu.com/s/1U0t76mh6bi7Z9hC3t5aOxA)
