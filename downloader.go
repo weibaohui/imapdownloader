@@ -54,12 +54,10 @@ func (d *Downloader) downloadAccountMailbox(ctx context.Context, mailbox string)
 		return
 	}
 	all := status.Messages
-	log.Printf("下载批次: %d\n", int(all/100))
-
 	dir := filepath.Join(d.Options.absDir, mailbox)
 	log.Printf("%s邮箱文件夹下载存放位置: %s\n", mailbox, dir)
-
-	for i := 0; i <= int(all/100); i++ {
+	count := int(all / 100)
+	for i := 0; i <= count; i++ {
 		start := i*100 + 1
 		end := (i + 1) * 100
 		if int(all)-start < 100 {
