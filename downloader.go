@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
@@ -57,6 +58,7 @@ func (d *Downloader) downloadAccountMailbox(ctx context.Context, mailbox string)
 	dir := filepath.Join(d.Options.absDir, mailbox)
 	log.Printf("%s邮箱文件夹下载存放位置: %s\n", mailbox, dir)
 	count := int(all / 100)
+	t1 := time.Now()
 	for i := 0; i <= count; i++ {
 		start := i*100 + 1
 		end := (i + 1) * 100
@@ -66,11 +68,11 @@ func (d *Downloader) downloadAccountMailbox(ctx context.Context, mailbox string)
 		log.Printf("\n\n正在分析第%d批:[%d~%d]\n\n", i+1, start, end)
 		err = d.downloadMailsByRange(ctx, uint32(start), uint32(end))
 		if err != nil {
-			log.Printf("第%d批:[%d~%d]发生错误:%s\n", i+1, start, end, err.Error())
 			return
 		}
 	}
-
+	t2 := time.Since(t1)
+	log.Printf("下载耗时：%0.0f分钟", t2.Minutes())
 	return
 }
 
