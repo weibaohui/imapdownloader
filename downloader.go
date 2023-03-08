@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/client"
@@ -31,12 +32,12 @@ func NewDownloader(opts *Options) (d *Downloader, err error) {
 		return
 	}
 	d.Client = cli
-	log.Println("已连接到服务器:", d.Options.Host)
+	log.Info("已连接到服务器:", d.Options.Host)
 
 	if err = d.Client.Login(d.Options.Username, d.Options.Password); err != nil {
 		return
 	}
-	log.Println("已登录:", d.Options.Username)
+	log.Info("已登录:", d.Options.Username)
 
 	return
 }
@@ -49,14 +50,14 @@ func (d *Downloader) downloadAccountMailbox(ctx context.Context, mailbox string)
 	if err != nil {
 		return
 	}
-	log.Printf("当前邮箱文件夹%s,总数%d \n", status.Name, status.Messages)
+	log.Infof("当前邮箱文件夹%s,总数%d \n", status.Name, status.Messages)
 
 	if status.Messages == 0 {
 		return
 	}
 	all := status.Messages
 	dir := filepath.Join(d.Options.absDir, mailbox)
-	log.Printf("%s邮箱文件夹下载存放位置: %s\n", mailbox, dir)
+	log.Infof("%s邮箱文件夹下载存放位置: %s\n", mailbox, dir)
 	count := int(all / 100)
 	t1 := time.Now()
 	for i := 0; i <= count; i++ {
@@ -65,14 +66,14 @@ func (d *Downloader) downloadAccountMailbox(ctx context.Context, mailbox string)
 		if int(all)-start < 100 {
 			end = int(status.Messages)
 		}
-		log.Printf("\n\n正在分析第%d批:[%d~%d]\n\n", i+1, start, end)
+		log.Infof("\n\n正在分析第%d批:[%d~%d]\n\n", i+1, start, end)
 		err = d.downloadMailsByRange(ctx, uint32(start), uint32(end))
 		if err != nil {
 			return
 		}
 	}
 	t2 := time.Since(t1)
-	log.Printf("下载耗时：%0.0f分钟", t2.Minutes())
+	log.Infof("下载耗时：%0.0f分钟", t2.Minutes())
 	return
 }
 
@@ -88,16 +89,16 @@ func (d *Downloader) getPrefixMatchedMailBoxes(ctx context.Context) (mailboxes [
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case err = <-done:
-			log.Println("枚举邮箱文件夹结束")
+			log.Infof("枚举邮箱文件夹结束")
 			return
 		case box := <-chBoxes:
 			if box == nil {
 				continue
 			}
-			log.Println("发现邮箱文件夹: ", box.Name)
+			log.Infof("发现邮箱文件夹: %s", box.Name)
 			for _, prefix := range d.Options.Prefixes {
 				if strings.HasPrefix(box.Name, prefix) {
-					log.Println("符合前缀条件:", box.Name)
+					log.Infof("符合前缀条件: %s", box.Name)
 					mailboxes = append(mailboxes, box.Name)
 					break
 				}
@@ -110,16 +111,16 @@ func (d *Downloader) getPrefixMatchedMailBoxes(ctx context.Context) (mailboxes [
 func (d *Downloader) downloadMailsByRange(ctx context.Context, start, end uint32) (err error) {
 	seqDL, err := d.getDownloadMailList(ctx, start, end)
 	if err != nil {
-		log.Printf("[%d~%d]分析下载队列出错:%s\n", start, end, err.Error())
+		log.Errorf("[%d~%d]分析下载队列出错:%s\n", start, end, err.Error())
 		return
 	}
 	if seqDL.Empty() {
-		log.Printf("[%d~%d]下载队列为空,跳过:\n", start, end)
+		log.Infof("[%d~%d]下载队列为空,跳过:\n", start, end)
 		return
 	}
 	err = d.downloadMailList(ctx, seqDL)
 	if err != nil {
-		log.Printf("[%d~%d]下载队列出错:%s\n", start, end, err.Error())
+		log.Errorf("[%d~%d]下载队列出错:%s\n", start, end, err.Error())
 		return
 	}
 	return
@@ -147,10 +148,10 @@ func (d *Downloader) getDownloadMailList(ctx context.Context, start uint32, end 
 			return
 		case msg := <-chMsg:
 			if msg != nil {
-				log.Printf("分析邮件: %s\n", msg.Envelope.Subject)
+				log.Infof("分析邮件: %s\n", msg.Envelope.Subject)
 				existed, err := d.checkMailStorePathExisted(msg)
 				if err != nil {
-					log.Printf("检测路径出错: %s\n", err)
+					log.Errorf("检测路径出错: %s\n", err)
 					return seqDL, err
 				}
 				if !existed {
@@ -164,7 +165,7 @@ func (d *Downloader) getDownloadMailList(ctx context.Context, start uint32, end 
 
 // 下载邮件列表
 func (d *Downloader) downloadMailList(ctx context.Context, seqDL *imap.SeqSet) (err error) {
-	log.Println("开始下载队列:", seqDL.String())
+	log.Infof("开始下载队列: %s", seqDL.String())
 	chMsg := make(chan *imap.Message, 10)
 	done := make(chan error, 1)
 
@@ -193,13 +194,13 @@ func (d *Downloader) downloadMailList(ctx context.Context, seqDL *imap.SeqSet) (
 // 下载邮件
 func (d *Downloader) downloadMail(msg *imap.Message) (err error) {
 	file := d.getMailStorePath(msg)
-	log.Printf("存储邮件：%s\n", file)
+	log.Infof("存储邮件：%s\n", file)
 	if err = os.MkdirAll(filepath.Dir(file), os.ModePerm); err != nil {
 		return
 	}
 	r := msg.GetBody(&imap.BodySectionName{})
 	if r == nil {
-		log.Println("message does not have a body:", msg.Envelope.MessageId)
+		log.Errorf("message does not have a body: %s", msg.Envelope.MessageId)
 		return
 	}
 	var f *os.File
@@ -209,7 +210,7 @@ func (d *Downloader) downloadMail(msg *imap.Message) (err error) {
 	defer func(f *os.File) {
 		err := f.Close()
 		if err != nil {
-			log.Printf("清理文件报错:%s\n", err.Error())
+			log.Errorf("清理文件报错:%s\n", err.Error())
 		}
 	}(f)
 
@@ -257,9 +258,9 @@ func (d *Downloader) checkMailStorePathExisted(msg *imap.Message) (existed bool,
 		return
 	}
 	if exists {
-		log.Printf("× 跳过：%s", msg.Envelope.Subject)
+		log.Infof("× 跳过：%s", msg.Envelope.Subject)
 		return exists, nil
 	}
-	log.Printf("√ 下载：%s", msg.Envelope.Subject)
+	log.Infof("√ 下载：%s", msg.Envelope.Subject)
 	return
 }

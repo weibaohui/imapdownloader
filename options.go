@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"os"
 	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Options struct {
@@ -17,14 +17,14 @@ type Options struct {
 }
 
 func (o *Options) print() {
-	fmt.Printf("======配置信息 开始======\n")
-	fmt.Printf("用户名：%s\n", o.Username)
-	fmt.Printf("服务器地址：%s\n", o.Host)
+	log.Infof("======配置信息 开始======\n")
+	log.Infof("用户名：%s\n", o.Username)
+	log.Infof("服务器地址：%s\n", o.Host)
 	for _, prefix := range o.Prefixes {
-		fmt.Printf("邮箱文件夹：%s\n", prefix)
+		log.Infof("邮箱文件夹：%s\n", prefix)
 	}
-	fmt.Printf("存储路径：%s\n", o.absDir)
-	fmt.Printf("======配置信息 结束======\n")
+	log.Infof("存储路径：%s\n", o.absDir)
+	log.Infof("======配置信息 结束======\n")
 
 }
 
