@@ -9,6 +9,7 @@ test
 *.ctxt
 backup
 dist
+stage
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
