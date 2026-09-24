@@ -39,7 +39,37 @@ func NewDownloader(opts *Options) (d *Downloader, err error) {
 	}
 	log.Info("已登录:", d.Options.Username)
 
+	// 部分邮箱（网易 126/163 等）要求登录后先发送 IMAP ID 命令(RFC 2971)进行客户端标识，
+	// 否则后续 SELECT/EXAMINE 会返回 "Unsafe Login" 而无法下载。此处尽力发送，失败仅告警不中断。
+	d.sendIMAPID()
+
 	return
+}
+
+// sendIMAPID 登录后发送 IMAP ID 命令进行客户端标识，解决网易 126/163 "Unsafe Login" 问题
+func (d *Downloader) sendIMAPID() {
+	cmd := &imap.Command{
+		Name: "ID",
+		Arguments: []interface{}{
+			// 参数为括号包裹的 字段名/值 字符串对，go-imap 会自动加引号与括号
+			[]interface{}{
+				"name", "imapdownloader",
+				"version", version,
+				"vendor", "weibaohui",
+				"support-email", "kefu@188.com",
+			},
+		},
+	}
+	status, err := d.Client.Execute(cmd, nil)
+	if err != nil {
+		log.Warnf("发送IMAP ID命令失败（可能服务器不支持）: %s", err.Error())
+		return
+	}
+	if status != nil && status.Err() != nil {
+		log.Warnf("IMAP ID命令返回错误: %s", status.Err().Error())
+		return
+	}
+	log.Infof("已发送IMAP ID命令完成客户端标识")
 }
 
 // 下载邮箱
@@ -149,6 +179,10 @@ func (d *Downloader) getDownloadMailList(ctx context.Context, start uint32, end 
 		case msg := <-chMsg:
 			if msg != nil {
 				log.Infof("分析邮件: %s\n", msg.Envelope.Subject)
+				if !d.matchFilter(msg) {
+					log.Infof("× 筛选过滤：%s\n", msg.Envelope.Subject)
+					continue
+				}
 				existed, err := d.checkMailStorePathExisted(msg)
 				if err != nil {
 					log.Errorf("检测路径出错: %s\n", err)
@@ -222,35 +256,49 @@ func (d *Downloader) downloadMail(msg *imap.Message) (err error) {
 
 // 获取邮件存储路径
 func (d *Downloader) getMailStorePath(msg *imap.Message) string {
-	year := msg.Envelope.Date.Format("2006")
-	month := msg.Envelope.Date.Format("01")
-	subject := msg.Envelope.Subject
-	subject = strings.Replace(subject, "“", "", -1)
-	subject = strings.Replace(subject, "”", "", -1)
-	subject = strings.Replace(subject, "\"", "", -1)
-	subject = strings.Replace(subject, "（", "", -1)
-	subject = strings.Replace(subject, "）", "", -1)
-	subject = strings.Replace(subject, " ", "", -1)
-	subject = strings.Replace(subject, "。", "", -1)
-	subject = strings.Replace(subject, "，", "", -1)
-	subject = strings.Replace(subject, "【", "", -1)
-	subject = strings.Replace(subject, "】", "", -1)
-	subject = strings.Replace(subject, "：", "", -1)
-	subject = strings.Replace(subject, ":", "", -1)
-	subject = strings.Replace(subject, "/", "", -1)
-	subject = strings.Replace(subject, "、", "", -1)
-	subject = strings.Replace(subject, "<", "", -1)
-	subject = strings.Replace(subject, ">", "", -1)
-	subject = strings.Replace(subject, "*", "", -1)
-	subject = strings.Replace(subject, "\\", "", -1)
-	subject = strings.Replace(subject, "?", "", -1)
-	subject = strings.Replace(subject, "|", "", -1)
-	dir := filepath.Join(d.Options.absDir, d.currentMailbox)
-	tid := fmt.Sprintf("%d", msg.Envelope.Date.UnixMilli())
-	return filepath.Join(dir, year, month, fmt.Sprintf("%s-%s.eml", subject, tid))
+	return mailStorePath(d.Options.absDir, d.currentMailbox, msg.Envelope.Date, msg.Envelope.Subject, fmt.Sprintf("%d", msg.Envelope.Date.UnixMilli()))
 }
 
-// 检查邮件存储路径是否存在
+// matchFilter 按配置的发件人/时间筛选条件判断邮件是否保留
+func (d *Downloader) matchFilter(msg *imap.Message) bool {
+	if d.Options == nil {
+		return true
+	}
+	// 发件人筛选：子串不区分大小写，匹配邮箱地址与姓名
+	if from := strings.TrimSpace(d.Options.From); from != "" {
+		matched := false
+		for _, a := range msg.Envelope.From {
+			if a == nil {
+				continue
+			}
+			email := strings.ToLower(fmt.Sprintf("%s@%s", a.MailboxName, a.HostName))
+			if strings.Contains(email, strings.ToLower(from)) {
+				matched = true
+				break
+			}
+			if strings.Contains(strings.ToLower(a.PersonalName), strings.ToLower(from)) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	// 时间筛选：Date 缺失则不满足时间条件（保守跳过）
+	mailDate := msg.Envelope.Date
+	if !mailDate.IsZero() {
+		if t, ok := d.Options.SinceTime(); ok && mailDate.Before(t) {
+			return false
+		}
+		if t, ok := d.Options.BeforeTime(); ok && !mailDate.Before(t) {
+			return false
+		}
+	}
+	return true
+}
+
+// checkMailStorePathExisted 检查邮件存储路径是否存在
 func (d *Downloader) checkMailStorePathExisted(msg *imap.Message) (existed bool, err error) {
 	file := d.getMailStorePath(msg)
 	exists, err := PathExists(file)

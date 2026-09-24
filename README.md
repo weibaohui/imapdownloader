@@ -46,6 +46,42 @@ prefixes:
 ### 4、备份文件再次备份
    如有需要，可以将`backup`文件夹压缩备份到您喜欢的云盘、U盘、硬盘上。
 
+## 功能进阶
+
+### 协议选择：IMAP / POP3
+配置项 `protocol`，取值 `imap`（默认）或 `pop3`。POP3 用主机 `pop.xxx.com:995`。
+POP3 模式下可选开启下载后删除服务器邮件（仅在 `QUIT` 后由服务器提交生效，不可恢复，谨慎开启）：
+```yaml
+protocol: pop3
+host: pop.qq.com:995
+delete: true
+```
+> POP3 只有一个收件箱，`prefixes` 第一项作为本地存储文件夹名。
+
+### 邮件筛选器
+配置项 `from` / `since` / `before`（均可省略，IMAP 模式生效）：
+```yaml
+from: noreply         # 按发件人筛选：子串不区分大小写，匹配邮箱地址与姓名
+since: 2024-01-01     # 起始日期(含当日)
+before: 2024-12-31    # 截止日期(不含当日)
+```
+三者组合取交集，不满足条件的邮件直接跳过不下载。
+
+### 已知邮箱连接问题
+
+#### 网易 126 / 163 邮箱「Unsafe Login」
+登录 126/163 时报 `EXAMINE Unsafe Login. Please contact kefu@188.com for help`，
+是因为这类服务器要求客户端先发送 IMAP `ID` 命令（RFC 2971）进行标识。
+本工具自 v1.1.0 起在登录后自动发送 `ID` 命令完成客户端标识，无需额外配置。
+若服务器仍拒绝，请确认是否使用了授权码（而非登录密码）及正确的 IMAP 服务器地址（`imap.126.com:993`）。
+
+#### Coremail 教育邮箱无法连接
+学校教育邮箱使用 `imap.xxx.edu.cn` 时报 `dial tcp: lookup imap.xxx.edu.cn: no such host`，
+解决办法是把配置的 `host` 改为 Coremail 统一入口：
+```yaml
+host: edu.icoremail.net:993
+```
+
 
 # 邮件备份工具对比
 ---

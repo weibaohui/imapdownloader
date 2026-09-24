@@ -1,13 +1,23 @@
 #备份下载的目录
 dir: backup
-#主机地址，必须是TLS加密的IMAP协议地址
+#主机地址，IMAP 用 imap.xxx:993，POP3 用 pop.xxx:995
 host: imap.qq.com:993
-#用户名，登录IMAP服务器的用户名
+#协议：imap(默认) 或 pop3
+protocol: imap
+#用户名
 username: qq@qq.com
-#密码，登录IMAP服务器的密码或授权码
+#密码，登录邮箱的密码或授权码
 password: password
+#仅 POP3 生效：下载成功后删除服务器上的邮件（不可恢复，谨慎开启）
+#delete: true
 prefixes:
  - 存档
  - 收件箱
  - INBOX
  - 已发送
+#筛选器（可选，IMAP 生效，均为可省略项）
+#按发件人筛选：子串不区分大小写，匹配邮箱地址与姓名
+#from: noreply
+#按时间筛选：YYYY-MM-DD，since 含当日，before 不含当日
+#since: 2024-01-01
+#before: 2024-12-31

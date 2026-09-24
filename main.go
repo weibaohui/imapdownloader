@@ -33,8 +33,17 @@ func main() {
 	opts.setAbsDir()
 	opts.print()
 	ctx := context.Background()
-	if err = DownloadByAccount(ctx, opts); err != nil {
-		log.Printf("下载报错：%s\n", err.Error())
+	var runErr error
+	switch opts.EffectiveProtocol() {
+	case "pop3":
+		runErr = DownloadByPOP3Account(ctx, opts)
+	case "imap":
+		runErr = DownloadByAccount(ctx, opts)
+	default:
+		log.Fatalf("不支持的协议：%s（仅支持 imap / pop3）", opts.Protocol)
+	}
+	if runErr != nil {
+		log.Printf("下载报错：%s\n", runErr.Error())
 	}
 }
 

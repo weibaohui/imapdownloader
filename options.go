@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -13,19 +15,74 @@ type Options struct {
 	Username string   `yaml:"username"`
 	Password string   `yaml:"password"`
 	Prefixes []string `yaml:"prefixes"`
-	absDir   string   // 绝对路径
+
+	// Protocol 取值 imap(默认) | pop3
+	Protocol string `yaml:"protocol"`
+	// Delete 仅 POP3 生效：下载成功后删除服务器上的对应邮件
+	Delete bool `yaml:"delete"`
+
+	// From 筛选发件人：子串匹配，不区分大小写，匹配发件人邮箱与姓名
+	From string `yaml:"from"`
+	// Since 筛选起始日期 YYYY-MM-DD（含），邮件 Date >= 当日 00:00
+	Since string `yaml:"since"`
+	// Before 筛选截止日期 YYYY-MM-DD（不含），邮件 Date < 当日 00:00
+	Before string `yaml:"before"`
+
+	absDir string // 绝对路径
 }
 
 func (o *Options) print() {
 	log.Infof("======配置信息 开始======\n")
+	log.Infof("协议：%s\n", o.EffectiveProtocol())
 	log.Infof("用户名：%s\n", o.Username)
 	log.Infof("服务器地址：%s\n", o.Host)
 	for _, prefix := range o.Prefixes {
 		log.Infof("邮箱文件夹：%s\n", prefix)
 	}
 	log.Infof("存储路径：%s\n", o.absDir)
+	if o.From != "" || o.Since != "" || o.Before != "" {
+		log.Infof("筛选-发件人：%s\n", o.From)
+		log.Infof("筛选-起始日期(含)：%s\n", o.Since)
+		log.Infof("筛选-截止日期(不含)：%s\n", o.Before)
+	}
+	if o.Protocol == "pop3" && o.Delete {
+		log.Warnf("⚠️ 已开启 POP3 下载后删除服务器邮件，删除在 QUIT 后生效且不可恢复\n")
+	}
 	log.Infof("======配置信息 结束======\n")
 
+}
+
+// EffectiveProtocol 返回规范化后的协议名，缺省 imap
+func (o *Options) EffectiveProtocol() string {
+	p := strings.ToLower(strings.TrimSpace(o.Protocol))
+	if p == "" {
+		return "imap"
+	}
+	return p
+}
+
+// SinceTime 解析 Since 为当日 00:00 的本地时间
+func (o *Options) SinceTime() (time.Time, bool) {
+	return o.parseDate(o.Since)
+}
+
+// BeforeTime 解析 Before 为当日 00:00 的本地时间
+func (o *Options) BeforeTime() (time.Time, bool) {
+	return o.parseDate(o.Before)
+}
+
+// parseDate 按 YYYY-MM-DD 解析为当日本地 00:00
+func (o *Options) parseDate(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	t, err := time.ParseInLocation("2006-01-02", s, time.Local)
+	if err != nil {
+		log.Warnf("日期解析失败[%s]: %s，忽略该筛选条件\n", s, err.Error())
+		return time.Time{}, false
+	}
+	return t, true
 }
 
 func (o *Options) setAbsDir() {
