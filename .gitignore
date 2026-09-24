@@ -117,6 +117,9 @@ fabric.properties
 *.so
 *.dylib
 
+# 本项目构建产物
+/imapdownloader
+
 # Test binary, built with `go test -c`
 *.test
 

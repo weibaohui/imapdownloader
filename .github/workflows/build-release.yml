@@ -1,0 +1,146 @@
+name: Build and Release
+
+# 参考 ntd(nothing-todo) 项目的 CI 模式：
+#   - push main / PR / tag 均跑构建（保证主干与 PR 始终可编译）
+#   - 仅推送 v* tag 时才创建 GitHub Release 并挂载产物
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  # 门禁：vet + 单元测试
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+      - run: go test ./...
+
+  # 交叉编译：纯 Go(CGO_ENABLED=0) 在单台 ubuntu runner 上产出全部目标
+  build:
+    name: Build (${{ matrix.goos }}/${{ matrix.goarch }}${{ matrix.goarm && format('v{0}', matrix.goarm) || '' }})
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64,  archive: tar.gz }
+          - { goos: linux,   goarch: arm64,  archive: tar.gz }
+          - { goos: linux,   goarch: 386,    archive: tar.gz }
+          - { goos: linux,   goarch: arm,    goarm: 7, archive: tar.gz }
+          - { goos: linux,   goarch: loong64, archive: tar.gz }
+          - { goos: darwin,  goarch: amd64,  archive: tar.gz }
+          - { goos: darwin,  goarch: arm64,  archive: tar.gz }
+          - { goos: windows, goarch: amd64,  archive: zip }
+          - { goos: windows, goarch: arm64,  archive: zip }
+          - { goos: windows, goarch: 386,    archive: zip }
+    env:
+      CGO_ENABLED: '0'
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      GOARM: ${{ matrix.goarm }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Determine version
+        id: ver
+        run: |
+          # tag 触发用 tag 名作为版本号；其余场景用 dev-<短SHA>，便于区分临时构建
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          ext=""
+          [[ "${GOOS}" == "windows" ]] && ext=".exe"
+          # -trimpath 去绝对路径；-s -w 去 symbol/table 减体积；-X 注入版本到 main.version
+          go build -trimpath -ldflags "-s -w -X main.version=${{ steps.ver.outputs.version }}" \
+            -o "dist/imapdownloader${ext}" .
+
+      - name: Stage archive contents
+        run: |
+          # 打包成一个 imapdownloader/ 目录，内含可执行文件 + 文档 + 配置示例
+          stage="stage/imapdownloader"
+          mkdir -p "$stage"
+          if [[ "${GOOS}" == "windows" ]]; then
+            cp dist/imapdownloader.exe "$stage/imapdownloader.exe"
+          else
+            cp dist/imapdownloader "$stage/imapdownloader"
+          fi
+          cp LICENSE README.md config.yaml "$stage/"
+
+      - name: Pack archive
+        id: pack
+        run: |
+          # 产物名形如 imapdownloader_v1.2.3_linux_arm64.tar.gz
+          arch="${GOARCH}"
+          [[ -n "${GOARM:-}" ]] && arch="${GOARCH}v${GOARM}"
+          name="imapdownloader_${{ steps.ver.outputs.version }}_${GOOS}_${arch}"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            (cd stage && zip -r "../dist/${name}.zip" imapdownloader)
+            echo "asset=dist/${name}.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -C stage -czf "dist/${name}.tar.gz" imapdownloader
+            echo "asset=dist/${name}.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: imapdownloader-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goarm && format('v{0}', matrix.goarm) || '' }}
+          path: ${{ steps.pack.outputs.asset }}
+          if-no-files-found: error
+
+  # 仅发版(tag)时运行：汇总全部产物 + 生成 sha256 校验文件 + 创建 Release
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+          echo "---- release assets ----"
+          ls -la
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
