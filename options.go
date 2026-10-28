@@ -86,7 +86,13 @@ func (o *Options) parseDate(s string) (time.Time, bool) {
 }
 
 func (o *Options) setAbsDir() {
-	// 改为绝对路径
+	// 配置里已是绝对路径（如 /vol1/mail、C:\mail）则直接采用，
+	// 不再拼到可执行文件目录下（filepath.Join 会把绝对路径当相对段拼坏）
+	if filepath.IsAbs(o.Dir) {
+		o.absDir = filepath.Clean(o.Dir)
+		return
+	}
+	// 相对路径：相对可执行文件所在目录
 	o.absDir = filepath.Join(GetCurrentDirectory(), o.Dir)
 }
 
