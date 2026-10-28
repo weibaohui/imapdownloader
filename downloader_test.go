@@ -44,6 +44,10 @@ func TestSanitizeSubject(t *testing.T) {
 		"主题：测试（一）":       "主题测试一",
 		`"quoted" <a@b>`: "quoteda@b",
 		"【标签】文件|名*?<>\\": "标签文件名",
+		// 首尾空白：折叠头残留 \r\n、全角空格结尾，Windows 下属非法文件名（#5）
+		"  hello world  ": "helloworld",
+		"\r\n 折叠头 主题\r\n": "折叠头主题",
+		"主题　测试　":          "主题　测试",
 	}
 	for in, want := range cases {
 		if got := sanitizeSubject(in); got != want {
@@ -58,6 +62,12 @@ func TestMailStorePath(t *testing.T) {
 	want := filepath.ToSlash(filepath.Join("/abs", "INBOX", "2024", "03", "测试主题-uid123.eml"))
 	if got != want {
 		t.Errorf("mailStorePath got=%s want=%s", got, want)
+	}
+	// 主题带首尾空白时生成合法文件名（#5）
+	got = mailStorePath("/abs", "INBOX", date, "\r\n 测试/主题? \r\n", "uid123")
+	want = filepath.ToSlash(filepath.Join("/abs", "INBOX", "2024", "03", "测试主题-uid123.eml"))
+	if got != want {
+		t.Errorf("mailStorePath(whitespace) got=%s want=%s", got, want)
 	}
 }
 

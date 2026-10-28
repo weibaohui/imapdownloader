@@ -256,7 +256,7 @@ func (d *Downloader) downloadMail(msg *imap.Message) (err error) {
 
 // 获取邮件存储路径
 func (d *Downloader) getMailStorePath(msg *imap.Message) string {
-	return mailStorePath(d.Options.absDir, d.currentMailbox, msg.Envelope.Date, msg.Envelope.Subject, fmt.Sprintf("%d", msg.Envelope.Date.UnixMilli()))
+	return mailStorePath(d.Options.absDir, d.currentMailbox, msg.Envelope.Date, strings.TrimSpace(msg.Envelope.Subject), fmt.Sprintf("%d", msg.Envelope.Date.UnixMilli()))
 }
 
 // matchFilter 按配置的发件人/时间筛选条件判断邮件是否保留
